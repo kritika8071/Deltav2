@@ -1,22 +1,13 @@
 const rows = 12;
 const columns = 6;
 const container = document.querySelector(".gameboard");
-const startBtn = document.getElementById("startBtn");
-const bombBtn = document.querySelector("#bombBtn");
 const capacity2 = [1, 6, 67, 72];
 const capacity3 = [2, 3, 4, 5, 68, 69, 70, 71];
-const teleportationCells = [[0,0],[11,4],[8,1],[8,2],[4,2],[9,1],[1,3],[5,0]];
 const click = new Audio("./assets/click.wav");
 const explosionSound = new Audio("./assets/explosion.wav");
-const playerTemplates = [
-   { name:"Blue", color:"blue" },
-   { name:"Green", color:"green" },
-   { name:"Red", color:"red" },
-   { name:"Yellow", color:"yellow" }
-];
 let grid = [];
-let moveHistory = [];
 let gameOver = false;
+let currentPlayer = "Blue";
 let turnNumber =1;
 let i=1;
 let timerGame = null;
@@ -27,86 +18,8 @@ let elapsedTimePlayer = 0;
 let playerStartTime = 0;
 let isGameRunning = false;
 let isRunning = false;
-let bombMode = false;
-let currentPlayerIndex = 0;
-let players;
-
-bombBtn.addEventListener("click", () => {
-  if(getCurrentPlayer().bombs>0){
-    bombMode = true;
-    alert(getCurrentPlayer().name + " selected bomb!");
-  }
-});
-
-startBtn.addEventListener("click", () => {
-  const playerCount = parseInt(document.getElementById("dropdown").value);
-  if(playerCount == 0){
-    alert("Choose the number of players!");
-  }
-  else{
-    createPlayers(playerCount);
-    startGame();
-    showGrid();
-  }
-});
-
-function startGame(){
-  createGrid();
-  document.querySelector(".menuScreen").style.display = "none";
-  document.querySelector(".screen").style.display = "flex";
-  updateScoreboard();
-}
-  
-function explodeBomb(row, col){
-    for(let r = row - 1; r <= row + 1; r++){
-      for(let c = col - 1; c <= col + 1; c++){
-            if(r >= 0 && r < rows && c >= 0 && c < columns){
-                const cell = grid[r][c];
-                cell.owner = null;
-                cell.count = 0;
-                changeVisuals(cell);
-            }
-        }
-    }
-}
-
-function createPlayers(playerCount){
-  players = [];
-  for(let i = 0; i<playerCount; i++){
-    players.push({
-      ...playerTemplates[i],
-      score: 0,
-      eliminated: false,
-      bombs: 1
-    });
-  }
-}
-
-function getCurrentPlayer(){
-  return players[currentPlayerIndex];
-}
-
-function updateScoreboard(){
-  const scoreboard = document.querySelector(".scoreboard");
-  scoreboard.innerHTML = "";
-  for(let i = 0; i < players.length; i++){
-    scoreboard.innerHTML += `
-      <div>${players[i].name}: ${players[i].score}</div>`;
-  }
-}
-
-function updateHistory(playerMove){
-  moveHistory.push(playerMove);
-  updateVisualMoves();
-}
-
-function updateVisualMoves(){
-  const visualMoves = document.querySelector(".visualMoves");
-  visualMoves.innerHTML = "";
-  for(let i = moveHistory.length - 1; i>=0; i--){
-    visualMoves.innerHTML += `<div>${moveHistory[i]}</div>`;
-  }
-}
+let blueScore = 0;
+let greenScore = 0;
 
 function startGameTimer(){
   if(!isGameRunning){
@@ -118,16 +31,9 @@ function startGameTimer(){
 
 function startPlayerTimer(){
     clearInterval(timerPlayer);
-    elapsedTimePlayer = 0;
-    playerStartTime = Date.now();
+    playerStartTime = Date.now()-elapsedTimePlayer;
     timerPlayer = setInterval(updatePlayerTime,10);
     isRunning = true; 
-}
-
-function resumePlayerTimer(){
-  clearInterval(timerPlayer);
-  playerStartTime = Date.now() - elapsedTimePlayer;
-  timerPlayer = setInterval(updatePlayerTime,10);
 }
 
 function updateGameTime(){
@@ -140,7 +46,7 @@ function updateGameTime(){
     gameOver = true;
     clearInterval(timerGame);
     clearInterval(timerPlayer);
-    alert("Time Over!");     
+    alert("Time Over!");
     
     return;
   }
@@ -161,16 +67,16 @@ function updatePlayerTime(){
   let playerTimeLeft = 15*1000 - elapsedTimePlayer;
 
   if(playerTimeLeft<=0){
+    clearInterval(timerGame);
     clearInterval(timerPlayer);
-    alert(getCurrentPlayer().name + " ran out of time");
-    getCurrentPlayer().eliminated = true;
-    if(scanGrid().length == 1){
-      alert(scanGrid()[0] + " wins!");
-      resetTimers();
-      gameOver = true;
+    alert(currentPlayer + " ran out of time");
+    if(currentPlayer == "Blue"){
+      alert("Green Wins!");
     }
-    changeTurn();
-    startPlayerTimer();
+    else{
+      alert("Blue Wins!");
+    }
+    gameOver = true;
     return;
   }
 
@@ -217,7 +123,9 @@ function scanGrid(){
       }
     }
   }
-    return owners;
+  if(owners.length == 1){
+    return owners[0];
+  }
 }
 
 function explosion(startRow,startColumn){
@@ -228,13 +136,21 @@ function explosion(startRow,startColumn){
    const currentCell = grid[r][c];
 
    if(currentCell.count < currentCell.capacity){
-      getCurrentPlayer().score += 1;
-      updateScoreboard();
+      if(currentCell.owner=="Blue"){
+        blueScore += 1;
+      }
+      else{
+        greenScore += 1;
+      }
       continue;
    }
-
-   getCurrentPlayer().score += (1+(findNeighbours(r,c).length));
-   updateScoreboard();
+    
+   if(currentPlayer == "Blue"){
+    blueScore += (1+(findNeighbours(r,c).length));
+   }
+   else{
+    greenScore += (1+findNeighbours(r,c).length);
+   }
 
    currentCell.count = 0;
    currentCell.owner = null;
@@ -246,9 +162,9 @@ function explosion(startRow,startColumn){
    for(let [nr, nc] of neighbours){
     const neighbourCell = grid[nr][nc];
     neighbourCell.count++;
-    neighbourCell.owner = getCurrentPlayer().name;
+    neighbourCell.owner = currentPlayer;
     changeVisuals(neighbourCell);
-    teleportCells(nr,nc);
+
     if(neighbourCell.count >= neighbourCell.capacity){
       queue.push([nr,nc]);
     }
@@ -277,36 +193,7 @@ function findNeighbours(r,c){
 
 }
 
-function teleportCells(row, column){
-  let c = grid[row][column];
-  let teleportedCell;
-  let teleportedRow;
-  let teleportedColumn;
-  for(let pair of teleportationCells){
-    if(pair[0]==row && pair[1]==column){
-      do{
-        teleportedRow = Math.floor(Math.random()*12);
-        teleportedColumn = Math.floor(Math.random()*6);
-       }
-      while(teleportedRow == row && teleportedColumn == column);
-      teleportedCell = grid[teleportedRow][teleportedColumn];
-      teleportedCell.owner = c.owner;
-      teleportedCell.count += c.count;
-      changeVisuals(teleportedCell);
-      updateHistory(`${c.owner} triggered teleport`);
-      if(teleportedCell.count >= teleportedCell.capacity){
-        explosion(teleportedRow, teleportedColumn);
-      }
-      c.owner = null;
-      c.count = 0;
-      changeVisuals(grid[row][column]);
-      break;
-    }
-  }
-}
-
-function createGrid(){
-  for (var r = 0; r < rows; r++) {
+for (var r = 0; r < rows; r++) {
   let rowCells = [];
   for (var c = 0; c < columns; c++) {
     let capacity = 0;
@@ -341,20 +228,13 @@ function createGrid(){
   }
   grid.push(rowCells);
 }
-}
 
 function changeTurn() {
-  let turns = 0;
-  do{
-  currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
-  turns++;
-
-  if(turns > players.length){
-    gameOver = true;
-    return;
+  if (currentPlayer == "Blue") {
+    currentPlayer = "Green";
+  } else {
+    currentPlayer = "Blue";
   }
-  }
-  while(players[currentPlayerIndex].eliminated == true);
 }
 
 function changeVisuals(currentCell){
@@ -375,8 +255,14 @@ function changeVisuals(currentCell){
   c2.style.visibility = "hidden";
   c3.style.visibility = "hidden";
 
-  let color = currentCell.owner;
+  let color;
 
+  if(currentCell.owner == "Blue"){
+    color = "blue";
+  }
+  else{
+    color = "green";
+  }
    if (currentCell.count === 1) {
     c1.style.visibility = "visible";
     c1.style.backgroundColor = color;
@@ -398,9 +284,7 @@ function changeVisuals(currentCell){
 
 //Creating buttons and adding event listeners
 
-function showGrid()
-{
-  for (let r = 0; r < rows; r++) {
+for (let r = 0; r < rows; r++) {
   for (let c = 0; c < columns; c++) {
     const btn = document.createElement("button");
     btn.classList.add("gridcell");
@@ -433,72 +317,44 @@ function showGrid()
       if(gameOver === false){
       const clickedCell = grid[r][c];
 
-      if(bombMode){
-        updateHistory(`${getCurrentPlayer().name} used bomb at (${r},${c})`);
-        explodeBomb(r,c);
-        getCurrentPlayer().bombs--;
-        bombMode = false;
-
-        let owners = scanGrid();
-
-        if(owners.length == 1){
-          alert(owners[0] + " Wins");
-          resetTimers();
-          gameOver = true;
-          return;
-      }
-      changeTurn();
-      startPlayerTimer();
-      return;
-  }
-
-      if(turnNumber <= players.length && clickedCell.owner == null){
+      if((turnNumber == 1 || turnNumber == 2) && clickedCell.owner == null){
         clickedCell.count = clickedCell.capacity -1;
-        clickedCell.owner = getCurrentPlayer().name;
-        updateHistory(`${getCurrentPlayer().name} placed at (${r},${c})`);
+        clickedCell.owner = currentPlayer;
         changeVisuals(clickedCell);
         turnNumber++;
-        getCurrentPlayer().score += clickedCell.count;
-        updateScoreboard();
-        teleportCells(r,c);
+        if(currentPlayer == "Blue"){
+          blueScore += clickedCell.count;
+        }
+        else{
+          greenScore += clickedCell.count;
+        }
+        document.getElementsByClassName("blueScore")[0].textContent = `Blue: ${blueScore}`;
+        document.getElementsByClassName("greenScore")[0].textContent = `Green: ${greenScore}`;
         changeTurn();
         clearInterval(timerPlayer);
         startPlayerTimer();
       }
 
-      if(clickedCell.owner == getCurrentPlayer().name && turnNumber > players.length){
-        updateHistory(`${getCurrentPlayer().name} placed at (${r},${c})`);
+      if(clickedCell.owner == currentPlayer && turnNumber >2){
         clickedCell.count++;
         changeVisuals(clickedCell);
         explosion(r,c);
+        
+        document.getElementsByClassName("blueScore")[0].textContent = `Blue: ${blueScore}`;
+        document.getElementsByClassName("greenScore")[0].textContent = `Green: ${greenScore}`;
         turnNumber++;
-        let x = scanGrid();
-        if(x.length < players.length){
-          for(let player of players){
-            let found = false;
-            for(let owner of x){
-              if(player.name==owner){
-                found = true;
-                break;
-              }
-            }
-            if(!found){
-              player.eliminated = true;
-            }
-          }
-        }
-        if(x&&x.length == 1){
-          alert(x[0] + "Wins");
-          resetTimers();
-          gameOver = true;
-          return;
-        }
         changeTurn();
         clearInterval(timerPlayer);
         startPlayerTimer();
+        const x = scanGrid();
+        if(x == "Blue"|| x == "Green"){
+          alert(x + "Wins");
+          resetTimers();
+          gameOver = true;
+        }
       }
     }
     });
     container.appendChild(btn);
   }
-}}
+}
