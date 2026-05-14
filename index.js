@@ -331,8 +331,7 @@ for (let r = 0; r < rows; r++) {
         document.getElementsByClassName("blueScore")[0].textContent = `Blue: ${blueScore}`;
         document.getElementsByClassName("greenScore")[0].textContent = `Green: ${greenScore}`;
         changeTurn();
-        clearInterval(timerPlayer);
-        startPlayerTimer();
+        resetPlayerTimer();
       }
 
       if(clickedCell.owner == currentPlayer && turnNumber >2){
@@ -344,8 +343,7 @@ for (let r = 0; r < rows; r++) {
         document.getElementsByClassName("greenScore")[0].textContent = `Green: ${greenScore}`;
         turnNumber++;
         changeTurn();
-        clearInterval(timerPlayer);
-        startPlayerTimer();
+        resetPlayerTimer();
         const x = scanGrid();
         if(x == "Blue"|| x == "Green"){
           alert(x + "Wins");
